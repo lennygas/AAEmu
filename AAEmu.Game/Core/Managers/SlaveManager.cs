@@ -327,7 +327,8 @@ namespace AAEmu.Game.Core.Managers
                 Faction = owner.Faction,
                 Id = 0, // TODO (previously set to 10 which prevented the use of the slave doodads 
                 Summoner = owner,
-                SpawnTime = DateTime.UtcNow
+                SpawnTime = DateTime.UtcNow,
+                ItemId = item.Id
             };
 
             if (_slaveInitialItems.TryGetValue(template.Template.SlaveInitialItemPackId, out var itemPack))

@@ -38,6 +38,7 @@ namespace AAEmu.Game.Core.Managers.UnitManagers
         private readonly Dictionary<uint, ActabilityTemplate> _actabilities;
         private readonly Dictionary<int, ExpertLimit> _expertLimits;
         private readonly Dictionary<int, ExpandExpertLimit> _expandExpertLimits;
+        private readonly Dictionary<uint, Resurrection> _resurrection;
 
         public CharacterManager()
         {
@@ -48,6 +49,7 @@ namespace AAEmu.Game.Core.Managers.UnitManagers
             _actabilities = new Dictionary<uint, ActabilityTemplate>();
             _expertLimits = new Dictionary<int, ExpertLimit>();
             _expandExpertLimits = new Dictionary<int, ExpandExpertLimit>();
+            _resurrection = new Dictionary<uint, Resurrection>();
         }
 
         public CharacterTemplate GetTemplate(byte race, byte gender)
@@ -86,6 +88,12 @@ namespace AAEmu.Game.Core.Managers.UnitManagers
             return null;
         }
 
+        public Resurrection GetResurrection(uint id)
+        {
+            if (id > 10)
+                return _resurrection[10];
+            return _resurrection[id];
+        }
         public void Load()
         {
             Log.Info("Loading character templates...");
@@ -352,6 +360,23 @@ namespace AAEmu.Game.Core.Managers.UnitManagers
                             template.ItemId = reader.GetUInt32("item_id", 0);
                             template.ItemCount = reader.GetInt32("item_count");
                             _expandExpertLimits.Add(step++, template);
+                        }
+                    }
+                }
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT * FROM resurrection_waiting_times";
+                    command.Prepare();
+                    using (var reader = new SQLiteWrapperReader(command.ExecuteReader()))
+                    {
+                        while (reader.Read())
+                        {
+                            var template = new Resurrection();
+                            template.Id = reader.GetUInt32("id");
+                            template.PenaltyDuration = reader.GetInt32("penalty_duration");
+                            template.WaitingTime = reader.GetInt32("waiting_time");
+                            template.SiegeWaitingTime = reader.GetInt32("siege_waiting_time");
+                            _resurrection.Add(template.Id, template);
                         }
                     }
                 }

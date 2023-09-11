@@ -9,6 +9,7 @@ using AAEmu.Game.Models.Game.Char;
 using AAEmu.Game.Models.Game.DoodadObj.Static;
 using AAEmu.Game.Models.Game.Formulas;
 using AAEmu.Game.Models.Game.NPChar;
+using AAEmu.Game.Models.Game.Skills;
 using AAEmu.Game.Models.Tasks;
 using AAEmu.Game.Models.Tasks.Mate;
 
@@ -516,7 +517,7 @@ namespace AAEmu.Game.Models.Game.Units
                 var totalExp = (int)Math.Round(AppConfiguration.Instance.World.ExpRate * exp);
                 Experience += totalExp;
             }
-            SendPacket(new SCExpChangedPacket(ObjId, exp, false));
+            BroadcastPacket(new SCExpChangedPacket(ObjId, exp, false), true);
             CheckLevelUp();
         }
 
@@ -570,22 +571,6 @@ namespace AAEmu.Game.Models.Game.Units
         public override int DoFallDamage(ushort fallVel)
         {
             var fallDmg = base.DoFallDamage(fallVel);
-            if (Hp <= 0)
-            {
-                var riders = Passengers.ToList();
-                // When fall damage kills a mount, also kill all of it's riders
-                for (var i = riders.Count - 1; i >= 0; i--)
-                {
-                    var pos = riders[i].Key;
-                    var rider = WorldManager.Instance.GetCharacterByObjId(riders[i].Value._objId);
-                    if (rider != null)
-                    {
-                        rider.DoFallDamage(fallVel);
-                        if (rider.Hp <= 0)
-                            MateManager.Instance.UnMountMate(rider, TlId, pos, AttachUnitReason.SlaveBinding);
-                    }
-                }
-            }
 
             return fallDmg;
         }
@@ -596,20 +581,9 @@ namespace AAEmu.Game.Models.Game.Units
             {
                 return;
             }
-            if (IsDead)
-            {
-                var riders = Passengers.ToList();
-                for (var i = riders.Count - 1; i >= 0; i--)
-                {
-                    var pos = riders[i].Key;
-                    var rider = WorldManager.Instance.GetCharacterByObjId(riders[i].Value._objId);
-                    if (rider != null)
-                    {
-                        MateManager.Instance.UnMountMate(rider, TlId, pos, AttachUnitReason.None);
-                    }
-                }
+
+            if (Buffs.CheckBuff((uint)BuffConstants.InjuryMount))
                 return;
-            }
 
             if (IsInBattle)
             {

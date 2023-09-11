@@ -1,8 +1,13 @@
 ﻿using System;
 
 using AAEmu.Game.Core.Packets;
+using AAEmu.Game.Core.Packets.G2C;
+using AAEmu.Game.Models.Game.Char;
+using AAEmu.Game.Models.Game.Items.Actions;
+using AAEmu.Game.Models.Game.Items;
 using AAEmu.Game.Models.Game.Skills.Templates;
 using AAEmu.Game.Models.Game.Units;
+using System.Collections.Generic;
 
 namespace AAEmu.Game.Models.Game.Skills.Effects
 {
@@ -18,6 +23,17 @@ namespace AAEmu.Game.Models.Game.Skills.Effects
             CompressedGamePackets packetBuilder = null)
         {
             _log.Trace("RepairSlaveEffect");
+
+            if (caster is Character character && targetObj is SkillCastItemTarget itemTarget)
+            {
+                var item = character.Inventory.Bag.GetItemByItemId(itemTarget.Id);
+                if (item is Summon summon)
+                {
+                    summon.NeedRepair = 0;
+                }
+                character.BroadcastPacket(new SCItemTaskSuccessPacket(ItemTaskType.RepairSlaves, new List<ItemTask> { new ItemUpdate(item) }, new List<ulong>()), true);
+                //TODO: cooldown of item recovery in inventory 10 minutes
+            }
         }
     }
 }

@@ -28,6 +28,9 @@
         EquipTwoHanded = 8227,
         InBeautySalon = 6117,
         NpcReturn = 550, // TODO: Find
-        SearchSchoolOfFish = 5736
+        SearchSchoolOfFish = 5736,
+        InjuryMount = 1578,
+        TrippedMount = 1579,
+        RebirthTrauma = 2385
     }
 }

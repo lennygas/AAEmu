@@ -1,7 +1,11 @@
-﻿using AAEmu.Commons.Network;
+﻿using System;
+using AAEmu.Commons.Network;
 using AAEmu.Game.Core.Managers;
+using AAEmu.Game.Core.Managers.UnitManagers;
 using AAEmu.Game.Core.Network.Game;
 using AAEmu.Game.Core.Packets.G2C;
+using AAEmu.Game.Models.Game.Char;
+using AAEmu.Game.Models.Game.Skills;
 
 namespace AAEmu.Game.Core.Packets.C2G
 {
@@ -18,6 +22,10 @@ namespace AAEmu.Game.Core.Packets.C2G
             _log.Debug("ResurrectCharacter, InPlace: {0}", inPlace);
 
             var portal = PortalManager.Instance.GetClosestReturnPortal(Connection.ActiveChar);
+            var resurrection = CharacterManager.Instance.GetResurrection((uint)Connection.ActiveChar.DeadCount);
+            var rebirthTraumaBuff = SkillManager.Instance.GetBuffTemplate((uint)BuffConstants.RebirthTrauma);
+            
+            rebirthTraumaBuff.Duration = (int)TimeSpan.FromSeconds(resurrection.PenaltyDuration).TotalMilliseconds;
 
             if (inPlace)
             {
@@ -25,11 +33,15 @@ namespace AAEmu.Game.Core.Packets.C2G
                 Connection.ActiveChar.Mp = (int)(Connection.ActiveChar.MaxMp * (Connection.ActiveChar.ResurrectMpPercent / 100.0f));
                 Connection.ActiveChar.ResurrectHpPercent = 1;
                 Connection.ActiveChar.ResurrectMpPercent = 1;
+
+                Connection.ActiveChar.Buffs.AddBuff(new Buff(Connection.ActiveChar, Connection.ActiveChar, SkillCaster.GetByType(SkillCasterType.Unit), rebirthTraumaBuff, null, System.DateTime.UtcNow));
             }
             else
             {
                 Connection.ActiveChar.Hp = (int)(Connection.ActiveChar.MaxHp * 0.1);
                 Connection.ActiveChar.Mp = (int)(Connection.ActiveChar.MaxMp * 0.1);
+
+                Connection.ActiveChar.Buffs.AddBuff(new Buff(Connection.ActiveChar, Connection.ActiveChar, SkillCaster.GetByType(SkillCasterType.Unit), rebirthTraumaBuff, null, System.DateTime.UtcNow));
             }
 
             if (portal.X != 0)

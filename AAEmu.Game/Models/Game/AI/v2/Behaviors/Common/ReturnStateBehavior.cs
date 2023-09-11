@@ -75,7 +75,7 @@ namespace AAEmu.Game.Models.Game.AI.v2.Behaviors
         public override void Exit()
         {
             // TODO: Ai.Owner.EnableAggro();
-            
+            Ai.Owner.BroadcastPacket(new SCCombatClearedPacket(Ai.Owner.ObjId), true);
             Ai.Owner.Buffs.RemoveBuff((uint)BuffConstants.NpcReturn);
         }
     }

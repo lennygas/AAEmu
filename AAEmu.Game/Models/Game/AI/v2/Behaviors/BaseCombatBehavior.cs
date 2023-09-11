@@ -171,30 +171,26 @@ namespace AAEmu.Game.Models.Game.AI.v2.Behaviors
         {
             //We might want to optimize this somehow..
             var aggroList = Ai.Owner.AggroTable.Values;
-            var abusers = aggroList.OrderByDescending(o => o.TotalAggro).Select(o => o.Owner).ToList();
+            var abuser = aggroList.OrderByDescending(o => o.TotalAggro).Select(o => o.Owner).FirstOrDefault(); //We pick the one who did the most damage.
 
-            foreach (var abuser in abusers)
+            if (Ai.AlreadyTargetted && Ai.Owner.CurrentAggroTarget == abuser?.ObjId)
+                return true;
+
+            else if (Ai.Owner.UnitIsVisible(abuser) && !abuser.IsDead)
             {
-                if (Ai.AlreadyTargetted)
-                    return true;
+                Ai.Owner.CurrentAggroTarget = abuser.ObjId;
+                Ai.Owner.SetTarget(abuser);
 
-                if (Ai.Owner.UnitIsVisible(abuser) && !abuser.IsDead && !Ai.AlreadyTargetted)
-                {
-                    Ai.Owner.CurrentAggroTarget = abuser.ObjId;
-                    Ai.Owner.SetTarget(abuser);
+                // TODO найдем путь к abuser
+                Ai.Owner.FindPath(abuser);
 
-                    // TODO найдем путь к abuser
-                    Ai.Owner.FindPath(abuser);
-
-                    return true;
-                }
-                else
-                {
-                    Ai.Owner.ClearAggroOfUnit(abuser);
-                }
+                return true;
             }
-            Ai.Owner.SetTarget(null);
-            return false;
+            else
+            {
+                Ai.Owner.SetTarget(null);
+                return false;
+            }
         }
 
     }

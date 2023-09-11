@@ -7,6 +7,7 @@ using AAEmu.Commons.Network;
 using AAEmu.Game.Core.Managers;
 using AAEmu.Game.Core.Managers.AAEmu.Game.Core.Managers;
 using AAEmu.Game.Core.Managers.Id;
+using AAEmu.Game.Core.Managers.UnitManagers;
 using AAEmu.Game.Core.Managers.World;
 using AAEmu.Game.Core.Network.Connections;
 using AAEmu.Game.Core.Network.Game;
@@ -14,11 +15,14 @@ using AAEmu.Game.Core.Packets.G2C;
 using AAEmu.Game.GameData;
 using AAEmu.Game.Models.Game.AI.AStar;
 using AAEmu.Game.Models.Game.Char;
+using AAEmu.Game.Models.Game.DoodadObj.Static;
 using AAEmu.Game.Models.Game.Expeditions;
+using AAEmu.Game.Models.Game.Formulas;
 using AAEmu.Game.Models.Game.Housing;
 using AAEmu.Game.Models.Game.Items;
 using AAEmu.Game.Models.Game.Items.Actions;
 using AAEmu.Game.Models.Game.Items.Containers;
+using AAEmu.Game.Models.Game.Items.Templates;
 using AAEmu.Game.Models.Game.NPChar;
 using AAEmu.Game.Models.Game.Quests;
 using AAEmu.Game.Models.Game.Skills;
@@ -338,46 +342,125 @@ namespace AAEmu.Game.Models.Game.Units
 
             Events.OnDeath(this, new OnDeathArgs { Killer = (Unit)killer, Victim = this });
             Buffs.RemoveEffectsOnDeath();
-            killer.BroadcastPacket(new SCUnitDeathPacket(ObjId, killReason, (Unit)killer), true);
+
+            if (this is Character character)
+            {
+                character.StopAutoSkill(character);
+                character.IsInBattle = false;
+                character.DeadTime = DateTime.UtcNow;
+                DespawMate(character);
+
+                if (character.Buffs.CheckBuff((uint)BuffConstants.RebirthTrauma))
+                    character.DeadCount += 1;
+                else
+                    character.DeadCount = 1;
+
+                var resurrection = CharacterManager.Instance.GetResurrection((uint)character.DeadCount);
+
+                if (killer is not Character kchar)
+                {
+                    var expPerLvl = ExpirienceManager.Instance.GetExpForLevel((byte)(character.Level + 1)) - ExpirienceManager.Instance.GetExpForLevel(character.Level);
+
+                    var formula = FormulaManager.Instance.GetFormula((uint)FormulaKind.PenaltyExp);
+                    var lostExp = (int)formula.Evaluate(new Dictionary<string, double>() { ["experience"] = expPerLvl });
+                    lostExp = Math.Min(lostExp, character.Expirience - ExpirienceManager.Instance.GetExpForLevel(character.Level));
+                    character.AddExp(-lostExp, true);
+
+                    formula = FormulaManager.Instance.GetFormula((uint)FormulaKind.RecoverableExp);
+                    var recoverExp = (int)formula.Evaluate(new Dictionary<string, double>() { ["experience"] = expPerLvl });
+                    if (lostExp < recoverExp)
+                        recoverExp = lostExp;
+                    character.RecoverableExp = recoverExp;
+                    character.SendPacket(new SCRecoverableExpPacket(character.ObjId, character.RecoverableExp, lostExp, 0));
+
+                    var tasks = new List<ItemTask>();
+                    var durabilityLossRatio = ItemManager.Instance.GetDeathDurabilityLossRatio();
+                    foreach (var item in character.Inventory.Equipment.Items)
+                    {
+                        if (item is EquipItem equipItem && item.Template is EquipItemTemplate)
+                        {
+                            equipItem.Durability = (byte)Math.Floor(equipItem.Durability - (equipItem.Durability * durabilityLossRatio / 100.0));
+                        }
+                        tasks.Add(new ItemUpdate(item));
+                    }
+                    character.SendPacket(new SCItemTaskSuccessPacket(ItemTaskType.DurabilityLoss, tasks, new List<ulong>()));
+                    character.BroadcastPacket(new SCUnitDeathPacket(ObjId, killReason, (Unit)killer, (int)TimeSpan.FromSeconds(resurrection.WaitingTime).TotalMilliseconds, lostExp, durabilityLossRatio), true);
+                }
+                else
+                {
+                    character.BroadcastPacket(new SCUnitDeathPacket(ObjId, killReason, (Unit)killer, (int)TimeSpan.FromSeconds(resurrection.WaitingTime).TotalMilliseconds), true);
+                }
+            }
+            else if (this is Mate mate)
+            {
+                mate.Hp = 1;
+                mate.Mp = 1;
+                mate.Buffs.AddBuff((uint)BuffConstants.InjuryMount, mate);
+                mate.Buffs.AddBuff((uint)BuffConstants.TrippedMount, mate);
+
+                var riders = mate.Passengers.ToList();
+                for (var i = riders.Count - 1; i >= 0; i--)
+                {
+                    var pos = riders[i].Key;
+                    var rider = WorldManager.Instance.GetCharacterByObjId(riders[i].Value._objId);
+                    if (rider != null)
+                    {
+                        MateManager.Instance.UnMountMate(rider, TlId, pos, AttachUnitReason.None);
+                    }
+                }
+
+                var item = ItemManager.Instance.GetItemByItemId(mate.ItemId);
+                if (item is Summon summon)
+                {
+                    summon.Exp = mate.Experience;
+                    summon.NeedRepair = 1;
+                    summon.Level = mate.Level;
+                }
+                mate.BroadcastPacket(new SCItemTaskSuccessPacket(ItemTaskType.MateDeath, new List<ItemTask> { new ItemUpdate(item) }, new List<ulong>()), true);
+            }
+            else if (this is Slave slave)
+            {
+                slave.BroadcastPacket(new SCUnitDeathPacket(ObjId, killReason, (Unit)killer), true);
+                var riders = slave.AttachedCharacters.ToList();
+                for (var i = riders.Count - 1; i >= 0; i--)
+                {
+                    var rider = WorldManager.Instance.GetCharacterByObjId(riders[i].Value.ObjId);
+                    if (rider != null)
+                    {
+                        SlaveManager.Instance.UnbindSlave(rider, TlId, AttachUnitReason.None);
+                    }
+                }
+
+                var item = ItemManager.Instance.GetItemByItemId(slave.ItemId);
+                if (item is Summon summon)
+                {
+                    summon.NeedRepair = 1;
+                    summon.Level = slave.Level;
+                }
+                slave.BroadcastPacket(new SCItemTaskSuccessPacket(ItemTaskType.SlaveDeath, new List<ItemTask> { new ItemUpdate(item) }, new List<ulong>()), true);
+            }
+            else
+            {
+                var lootDropItems = ItemManager.Instance.CreateLootDropItems(ObjId, killer);
+                if (lootDropItems.Count > 0)
+                {
+                    if (killer is Character charr)
+                        charr.SendPacket(new SCLootableStatePacket(ObjId, true));
+                }
+                BroadcastPacket(new SCUnitDeathPacket(ObjId, killReason, (Unit)killer), true);
+            }
+
             if (killer == this)
-            {
-                DespawMate((Character)this);
                 return;
-            }
 
-            var lootDropItems = ItemManager.Instance.CreateLootDropItems(ObjId, killer);
-            if (lootDropItems.Count > 0)
-            {
-                killer.BroadcastPacket(new SCLootableStatePacket(ObjId, true), true);
-            }
-
-            if (CurrentTarget != null)
+            if (((Unit)killer).CurrentTarget.ObjId == ObjId)
             {
                 killer.BroadcastPacket(new SCAiAggroPacket(killer.ObjId, 0), true);
                 ((Unit)killer).SummarizeDamage = 0;
 
-                if (((Unit)killer).CurrentTarget != null)
-                {
-                    killer.BroadcastPacket(new SCCombatClearedPacket(((Unit)killer).CurrentTarget.ObjId), true);
-                }
                 killer.BroadcastPacket(new SCCombatClearedPacket(killer.ObjId), true);
-                //killer.StartRegen();
+                killer.BroadcastPacket(new SCCombatClearedPacket(ObjId), true);
                 killer.BroadcastPacket(new SCTargetChangedPacket(killer.ObjId, 0), true);
-
-                if (killer is Character character)
-                {
-                    character.StopAutoSkill(character);
-                    character.IsInBattle = false; // we need the character to be "not in battle"
-                    DespawMate(character);
-                }
-                else if (((Unit)killer).CurrentTarget is Character character2)
-                {
-                    character2.StopAutoSkill(character2);
-                    character2.IsInBattle = false; // we need the character to be "not in battle"
-                    character2.DeadTime = DateTime.UtcNow;
-                    DespawMate(character2);
-                }
-
                 ((Unit)killer).CurrentTarget = null;
             }
         }

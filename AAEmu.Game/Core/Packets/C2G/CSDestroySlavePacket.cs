@@ -1,4 +1,5 @@
 ﻿using AAEmu.Commons.Network;
+using AAEmu.Game.Core.Managers;
 using AAEmu.Game.Core.Network.Game;
 
 namespace AAEmu.Game.Core.Packets.C2G
@@ -14,6 +15,9 @@ namespace AAEmu.Game.Core.Packets.C2G
             var tl = stream.ReadUInt16();
 
             _log.Debug("DestroySlave, Tl: {0}", tl);
+
+            var slaveTemplate = SlaveManager.Instance.GetActiveSlaveByOwnerObjId(Connection.ActiveChar.ObjId);
+            SlaveManager.Instance.Delete(Connection.ActiveChar, slaveTemplate.ObjId);
         }
     }
 }

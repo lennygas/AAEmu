@@ -6,6 +6,9 @@ namespace AAEmu.Game.Models.Game.Items
     public class Summon : Item
     {
         public override ItemDetailType DetailType => ItemDetailType.Mate;
+        public int Exp { get; set; }
+        public byte NeedRepair { get; set; }
+        public byte Level { get; set; }
 
         public Summon()
         {
@@ -25,9 +28,9 @@ namespace AAEmu.Game.Models.Game.Items
 
         public override void WriteDetails(PacketStream stream)
         {
-            stream.Write(0); // exp
-            stream.Write((byte) 0);
-            stream.Write((byte) 1); // level
+            stream.Write(Exp); // exp
+            stream.Write(NeedRepair);
+            stream.Write(Level); // level
         }
     }
 }

@@ -39,6 +39,7 @@ namespace AAEmu.Game.Models.Game.Units
         public float RotationDegrees { get; set; }
         public sbyte AttachPointId { get; set; } = -1;
         public uint OwnerObjId { get; set; }
+        public ulong ItemId { get; set; }
         public RigidBody RigidBody { get; set; }
         public SlaveSpawner Spawner { get; set; }
 
@@ -636,14 +637,6 @@ namespace AAEmu.Game.Models.Game.Units
             if (Hp > 0) { return; }
             ((Unit)attacker).Events.OnKill(attacker, new OnKillArgs { target = (Unit)attacker });
             DoDie(attacker, killReason);
-        }
-
-        public override void DoDie(BaseUnit killer, KillReason killReason)
-        {
-            InterruptSkills();
-            Events.OnDeath(this, new OnDeathArgs { Killer = (Unit)killer, Victim = this });
-            Buffs.RemoveEffectsOnDeath();
-            killer.BroadcastPacket(new SCUnitDeathPacket(ObjId, killReason, (Unit)killer), true);
         }
     }
 }

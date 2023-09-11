@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AAEmu.Game.Core.Managers;
 using AAEmu.Game.Core.Managers.Id;
 using AAEmu.Game.Core.Managers.UnitManagers;
+using AAEmu.Game.Models.Game.Items;
 using AAEmu.Game.Models.Game.Items.Templates;
 using AAEmu.Game.Models.Game.NPChar;
 using AAEmu.Game.Models.Game.Skills;
@@ -96,8 +97,8 @@ namespace AAEmu.Game.Models.Game.Char
                 ModelId = template.ModelId,
                 Faction = Owner.Faction,
                 Level = (byte)mateDbInfo.Level,
-                Hp = mateDbInfo.Hp > 0 ? mateDbInfo.Hp : 100,
-                Mp = mateDbInfo.Mp > 0 ? mateDbInfo.Mp : 100,
+                Hp = mateDbInfo.Hp,
+                Mp = mateDbInfo.Mp,
                 OwnerObjId = Owner.ObjId,
                 Id = mateDbInfo.Id,
                 ItemId = mateDbInfo.ItemId,
@@ -122,9 +123,14 @@ namespace AAEmu.Game.Models.Game.Char
                 var obj = new SkillCasterUnit(mount.ObjId);
                 buff.Apply(mount, obj, mount, null, null, new EffectSource(), null, DateTime.UtcNow);
             }
-            
+
+            if (item is Summon summon && summon.NeedRepair != 0)
+            {
+                mount.Buffs.AddBuff((uint)BuffConstants.InjuryMount, mount);
+                mount.Buffs.AddBuff((uint)BuffConstants.TrippedMount, mount);
+            }
             // TODO: Load Pet Gear
-            
+
             // Cap stats to their max
             mount.Hp = Math.Min(mount.Hp, mount.MaxHp);
             mount.Mp = Math.Min(mount.Mp, mount.MaxMp);
